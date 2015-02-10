@@ -1,4 +1,3 @@
-
 package org.usfirst.frc.team2129.robot;
 
 import com.ni.vision.NIVision;
