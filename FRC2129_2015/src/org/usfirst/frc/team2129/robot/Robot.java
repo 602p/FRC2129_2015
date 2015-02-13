@@ -1,4 +1,8 @@
+
 package org.usfirst.frc.team2129.robot;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 import com.ni.vision.NIVision;
 import com.ni.vision.NIVision.Image;
@@ -28,7 +32,7 @@ public class Robot extends IterativeRobot {
     Jaguar   intakeMotor1  = new Jaguar(5);
     Jaguar   intakeMotor2  = new Jaguar(6);
     AnalogInput elevatorTopLimit = new AnalogInput(1);
-    AnalogInput elevatorTopLimitLightSensor = new AnalogInput(0);
+    AnalogInput elevatorTopLimitPot = new AnalogInput(0);
     
     double   elevatorPower = 0.4;
     double   elevatorDecentPower = 0.4;
@@ -43,31 +47,31 @@ public class Robot extends IterativeRobot {
 	CameraServer server;
 	long counter = 0;
 	Rect rect;
-	
+	private double elevatorDivisor;
+	//And then the great god ted came upon us and said "these are cheap, so are these, use lots of them..."
 	public Robot(){
-		
 		try{
 			frame = NIVision.imaqCreateImage(NIVision.ImageType.IMAGE_RGB, 0);
-	
 	        // the camera name (ex "cam0") can be found through the roborio web interface
-	        session = NIVision.IMAQdxOpenCamera("cam0",
+	        this.session = NIVision.IMAQdxOpenCamera("cam0",
 	                NIVision.IMAQdxCameraControlMode.CameraControlModeController);
 	        NIVision.IMAQdxConfigureGrab(session);
 	        NIVision.IMAQdxStartAcquisition(session);
 		}catch (VisionException vx){
+			System.out.print(vx);
+			SmartDashboard.putString("LastError_iinit", vx.toString());
+			StringWriter sw = new StringWriter();
+			PrintWriter pw = new PrintWriter(sw);
+			vx.printStackTrace(pw);
+			SmartDashboard.putString("LastErrorTrace_iinit", sw.toString());
 			visionBroken=true;
 		}
-
+		
 
        robotDrive = new RobotDrive(frontLeftChannel, rearLeftChannel, frontRightChannel, rearRightChannel);
-       robotDrive.setExpiration(0.1);
-       
-       
-//	   robotDrive.setInvertedMotor(MotorType.kFrontLeft, true);	// invert the left side motors
-//	   robotDrive.setInvertedMotor(MotorType.kRearLeft, true);		// you may need to change or remove this to match your robot
 	}
-
-    @SuppressWarnings("deprecation")
+	
+	@SuppressWarnings("deprecation")
 	public void teleopPeriodic() {
 		this.counter++;
 		SmartDashboard.putNumber("Counter", this.counter);
@@ -76,23 +80,25 @@ public class Robot extends IterativeRobot {
 			try{
 				NIVision.IMAQdxGrab(session, frame, 1);
 				CameraServer.getInstance().setImage(frame);
-			}catch (VisionException vx){}
+			}catch (VisionException vx){
+				SmartDashboard.putString("LastError_each", vx.toString());
+				StringWriter sw = new StringWriter();
+				PrintWriter pw = new PrintWriter(sw);
+				vx.printStackTrace(pw);
+				SmartDashboard.putString("LastErrorTrace_each", sw.toString());
+				visionBroken=true;
+			}
     	}
 		
-		this.elevatorPower=SmartDashboard.getDouble("ElevatorPower", 0.4);
-		SmartDashboard.putNumber("ElevatorPower", elevatorPower);
-		
-		this.elevatorDecentPower=SmartDashboard.getDouble("ElevatorDecentPower", 0.4);
-		SmartDashboard.putNumber("ElevatorDecentPower", elevatorDecentPower);
-		
-		this.elevatorBonus=SmartDashboard.getDouble("ElevatorBonus", 0.1);
-		SmartDashboard.putNumber("ElevatorBonus", elevatorBonus);
-		
-		this.elevatorGoal=SmartDashboard.getDouble("ElevatorGoal", 0.1);
-		SmartDashboard.putNumber("ElevatorGoal", elevatorGoal);
-		
 		this.intakePower=SmartDashboard.getDouble("IntakePower", 0.4);
-		SmartDashboard.putNumber("IntakePower", intakePower);
+		SmartDashboard.putNumber("IntakePower", intakePower);		
+		SmartDashboard.putNumber("ETLS_L_Int", elevatorTopLimitPot.getValue());
+		
+		this.elevatorGoal=SmartDashboard.getDouble("elevatorGoal", 800);
+		SmartDashboard.putNumber("elevatorGoal", elevatorGoal);
+		
+		this.elevatorDivisor=SmartDashboard.getDouble("elevatorDivisor", 100);
+		SmartDashboard.putNumber("elevatorDivisor", elevatorDivisor);
 		
 		if (elevatorStick.getRawButton(4)){
 			intakeMotor1.set(intakePower);
@@ -105,27 +111,47 @@ public class Robot extends IterativeRobot {
 			intakeMotor2.set(0);
 		}
 		
-		SmartDashboard.putNumber("ETLS_L_Int", elevatorTopLimitLightSensor.getValue());
-		double rawExponentComponent = (float)Math.pow( (float)elevatorTopLimitLightSensor.getValue()-elevatorGoal , 1.5f);
-		SmartDashboard.putNumber("AutoRaise_rawExponentComponent", rawExponentComponent);
-		double exponentComponent = rawExponentComponent / 22000;
-		SmartDashboard.putNumber("AutoRaise_exponentComponent", exponentComponent);
-		double modifiedExponentComponent = exponentComponent * elevatorPower;
-		SmartDashboard.putNumber("AutoRaise_modifiedExponentComponent", modifiedExponentComponent);
-		double finalElevatorValue = modifiedExponentComponent + elevatorBonus;
-		SmartDashboard.putNumber("AutoRaise_finalValue", finalElevatorValue);
-		
-		if (elevatorStick.getRawButton(3)){
-			elevatorMotor.set(finalElevatorValue);
-		}else if (elevatorStick.getRawButton(2)){
-			elevatorMotor.set(-this.elevatorDecentPower);
+		double safteyMod = Math.min(0, -(elevatorTopLimitPot.getValue()-elevatorGoal))/elevatorDivisor;
+		SmartDashboard.putNumber("elevatorSafteyMod", safteyMod);
+		if (elevatorStick.getRawButton(10)){
+			safteyMod=0;
+			SmartDashboard.putBoolean("ElevatorOvveride", true);
 		}else{
-			elevatorMotor.set(0);
+			SmartDashboard.putBoolean("ElevatorOvveride", false);
+		}
+		SmartDashboard.putBoolean("VisionBroken", visionBroken);
+		if (elevatorStick.getRawButton(11)){
+			visionBroken=false;
+			try{
+				NIVision.IMAQdxCloseCamera(session);
+			}catch (VisionException vx){}
+			try{
+				
+				frame = NIVision.imaqCreateImage(NIVision.ImageType.IMAGE_RGB, 0);
+		        // the camera name (ex "cam0") can be found through the roborio web interface
+		        session = NIVision.IMAQdxOpenCamera("cam0",
+		                NIVision.IMAQdxCameraControlMode.CameraControlModeController);
+		        NIVision.IMAQdxConfigureGrab(session);
+		        NIVision.IMAQdxStartAcquisition(session);
+			}catch (VisionException vx){
+				SmartDashboard.putString("LastError_reinit", vx.toString());
+				StringWriter sw = new StringWriter();
+				PrintWriter pw = new PrintWriter(sw);
+				vx.printStackTrace(pw);
+				SmartDashboard.putString("LastErrorTrac_reinit", sw.toString());
+				visionBroken=true;
+			}
+			
 		}
 		
+		SmartDashboard.putNumber("elevatorFinal", -elevatorStick.getY()+safteyMod);
 		
+		if (elevatorStick.getRawButton(3) || true){
+			elevatorMotor.set(-elevatorStick.getY()+safteyMod);
+			SmartDashboard.putBoolean("ElevatorEnabled", true);
+		}
 		
-		robotDrive.mecanumDrive_Cartesian(translateStick.getX(), translateStick.getY(), rotateStick.getX(), 0);
+		robotDrive.mecanumDrive_Cartesian(-translateStick.getX(), translateStick.getY(), rotateStick.getX(), 0);
 		Timer.delay(0.005);
     }
 }
