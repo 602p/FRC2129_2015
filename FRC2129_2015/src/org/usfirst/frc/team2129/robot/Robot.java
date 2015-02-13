@@ -10,12 +10,14 @@ import com.ni.vision.NIVision.Rect;
 import com.ni.vision.VisionException;
 
 import edu.wpi.first.wpilibj.AnalogInput;
+import edu.wpi.first.wpilibj.BuiltInAccelerometer;
 import edu.wpi.first.wpilibj.CameraServer;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Jaguar;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.RobotDrive;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.interfaces.Accelerometer.Range;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Robot extends IterativeRobot {
@@ -34,11 +36,15 @@ public class Robot extends IterativeRobot {
     AnalogInput elevatorTopLimit = new AnalogInput(1);
     AnalogInput elevatorTopLimitPot = new AnalogInput(0);
     
+    BuiltInAccelerometer accelerometer = new BuiltInAccelerometer();
+    
     double   elevatorPower = 0.4;
     double   elevatorDecentPower = 0.4;
     double   intakePower   = 0.4;
     double   elevatorBonus = 0.1;
     double   elevatorGoal  = 260;
+    
+    double lastElevatorValue = 0;
     
     boolean  visionBroken  = false;
     
@@ -48,6 +54,10 @@ public class Robot extends IterativeRobot {
 	long counter = 0;
 	Rect rect;
 	private double elevatorDivisor;
+	private boolean fieldCentric;
+	private boolean disableSafteyMod;
+	private double reverseAscentThreshold;
+	private boolean reverseAscentEnabled;
 	//And then the great god ted came upon us and said "these are cheap, so are these, use lots of them..."
 	public Robot(){
 		try{
@@ -67,7 +77,7 @@ public class Robot extends IterativeRobot {
 			visionBroken=true;
 		}
 		
-
+	   accelerometer.setRange(Range.k2G);
        robotDrive = new RobotDrive(frontLeftChannel, rearLeftChannel, frontRightChannel, rearRightChannel);
 	}
 	
@@ -113,7 +123,7 @@ public class Robot extends IterativeRobot {
 		
 		double safteyMod = Math.min(0, -(elevatorTopLimitPot.getValue()-elevatorGoal))/elevatorDivisor;
 		SmartDashboard.putNumber("elevatorSafteyMod", safteyMod);
-		if (elevatorStick.getRawButton(10)){
+		if (elevatorStick.getRawButton(10) || disableSafteyMod){
 			safteyMod=0;
 			SmartDashboard.putBoolean("ElevatorOvveride", true);
 		}else{
@@ -144,14 +154,50 @@ public class Robot extends IterativeRobot {
 			
 		}
 		
+		this.fieldCentric=SmartDashboard.getBoolean("fieldCentric", false);
+		SmartDashboard.putBoolean("fieldCentric", fieldCentric);
+		
+		this.disableSafteyMod=SmartDashboard.getBoolean("disableSaftey", false);
+		SmartDashboard.putBoolean("disableSaftey", disableSafteyMod);
+		
+		this.reverseAscentEnabled=SmartDashboard.getBoolean("reverseAscentEnabled", true);
+		SmartDashboard.putBoolean("reverseAscentEnabled", reverseAscentEnabled);
+		
 		SmartDashboard.putNumber("elevatorFinal", -elevatorStick.getY()+safteyMod);
 		
-		if (elevatorStick.getRawButton(3) || true){
-			elevatorMotor.set(-elevatorStick.getY()+safteyMod);
-			SmartDashboard.putBoolean("ElevatorEnabled", true);
+		this.reverseAscentThreshold=SmartDashboard.getDouble("reverseAscentThreshold", 10);
+		SmartDashboard.putNumber("reverseAscentThreshold", reverseAscentThreshold);
+		
+		boolean rad=false;
+		
+		if ((elevatorTopLimitPot.getValue()<reverseAscentThreshold) && (-elevatorStick.getY() < 0)){
+			rad = true;
 		}
 		
-		robotDrive.mecanumDrive_Cartesian(-translateStick.getX(), translateStick.getY(), rotateStick.getX(), 0);
+		SmartDashboard.putBoolean("reverseAscentDetected", rad);
+		SmartDashboard.putBoolean("reverseAscentEnabled", reverseAscentEnabled);
+		
+		if (elevatorStick.getRawButton(3) || true){
+			if (!rad || !reverseAscentEnabled){
+				elevatorMotor.set(-elevatorStick.getY()+safteyMod);
+				SmartDashboard.putBoolean("ElevatorEnabled", true);
+			}
+		}
+		
+		double modifiedGyroValue = 0;
+		double accelReading = accelerometer.getX();
+		SmartDashboard.putNumber("accelerometerReading", accelReading);
+		
+		if (fieldCentric){
+			modifiedGyroValue = accelReading;
+		}
+		
+		robotDrive.mecanumDrive_Cartesian(-translateStick.getX(), translateStick.getY(), rotateStick.getX(), modifiedGyroValue);
 		Timer.delay(0.005);
     }
+
+	public void autonomousPeriodic(){
+		robotDrive.mecanumDrive_Cartesian(0, -0.5, 0, accelerometer.getX());
+		Timer.delay(0.005);
+	}
 }
