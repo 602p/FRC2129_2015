@@ -107,7 +107,7 @@ public class Robot extends IterativeRobot {
 		this.elevatorGoal=SmartDashboard.getDouble("elevatorGoal", 800);
 		SmartDashboard.putNumber("elevatorGoal", elevatorGoal);
 		
-		this.elevatorDivisor=SmartDashboard.getDouble("elevatorDivisor", 100);
+		this.elevatorDivisor=SmartDashboard.getDouble("elevatorDivisor", 300);
 		SmartDashboard.putNumber("elevatorDivisor", elevatorDivisor);
 		
 		if (elevatorStick.getRawButton(4)){
@@ -165,7 +165,7 @@ public class Robot extends IterativeRobot {
 		
 		SmartDashboard.putNumber("elevatorFinal", -elevatorStick.getY()+safteyMod);
 		
-		this.reverseAscentThreshold=SmartDashboard.getDouble("reverseAscentThreshold", 10);
+		this.reverseAscentThreshold=SmartDashboard.getDouble("reverseAscentThreshold", 30);
 		SmartDashboard.putNumber("reverseAscentThreshold", reverseAscentThreshold);
 		
 		boolean rad=false;
@@ -196,8 +196,18 @@ public class Robot extends IterativeRobot {
 		Timer.delay(0.005);
     }
 
+	@SuppressWarnings("deprecation")
 	public void autonomousPeriodic(){
-		robotDrive.mecanumDrive_Cartesian(0, -0.5, 0, accelerometer.getX());
+		double strafeValue = SmartDashboard.getDouble("autoStrafe", 0);
+		SmartDashboard.putDouble("autoStrafe", strafeValue);
+		
+		double driveValue = SmartDashboard.getDouble("autoDrive", 0);
+		SmartDashboard.putDouble("autoDrive", driveValue);
+		
+		double rotateValue = SmartDashboard.getDouble("autoRotate", 0);
+		SmartDashboard.putDouble("autoRotate", rotateValue);
+		
+		robotDrive.mecanumDrive_Cartesian(strafeValue, driveValue, rotateValue, accelerometer.getX());
 		Timer.delay(0.005);
 	}
 }
