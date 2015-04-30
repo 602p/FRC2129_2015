@@ -120,14 +120,7 @@ public class Robot extends IterativeRobot {
 			intakeMotor1.set(0);
 			intakeMotor2.set(0);
 		}
-		
-<<<<<<< HEAD
-		double safteyMod = Math.min(0, -(elevatorTopLimitPot.getValue()-elevatorGoal))/elevatorDivisor;
-		SmartDashboard.putNumber("elevatorSafteyMod", safteyMod);
-		if (elevatorStick.getRawButton(10) || disableSafteyMod){
-			safteyMod=0;
-			SmartDashboard.putBoolean("ElevatorOvveride", true);
-=======
+
 		SmartDashboard.putNumber("ETLS_L_Int", elevatorTopLimitLightSensor.getValue());
 		double rawExponentComponent = (float)Math.pow( (float)elevatorTopLimitLightSensor.getValue()-elevatorGoal , 1.5f);
 		SmartDashboard.putNumber("AutoRaise_rawExponentComponent", rawExponentComponent);
@@ -143,7 +136,6 @@ public class Robot extends IterativeRobot {
 			elevatorMotor.set(elevatorStick.getY());
 		}else if (elevatorStick.getRawButton(2)){
 			//elevatorMotor.set(-this.elevatorDecentPower);
->>>>>>> misc
 		}else{
 			SmartDashboard.putBoolean("ElevatorOvveride", false);
 		}
